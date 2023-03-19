@@ -22,6 +22,7 @@ export const vuePresets: VuePresets = {
 export const defaults = {
   lastChecked: undefined,
   latestVersion: undefined,
+
   packageManager: undefined,
   useTaoBaoRegistry: undefined,
   presets: vuePresets
@@ -41,7 +42,9 @@ interface DefaultPreset {
   };
 }
 
-type VuePresets = {
-  'Default (Vue 3)': Merge<{ vueVersion: string }, DefaultPreset>;
-  'Default (Vue 2)': Merge<{ vueVersion: string }, DefaultPreset>;
-};
+export type VuePresetsItem = Merge<{ vueVersion: string }, DefaultPreset>;
+
+export interface VuePresets {
+  'Default (Vue 3)': VuePresetsItem;
+  'Default (Vue 2)': VuePresetsItem;
+}

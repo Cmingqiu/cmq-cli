@@ -15,3 +15,11 @@ export type Merge<T extends object, K extends object> = Omit<
   keyof Inter<T, K>
 > &
   K;
+
+// package.json类型
+export type PkgType = {
+  name: string;
+  version: string;
+  private: boolean;
+  devDependencies: Record<string, string>;
+};

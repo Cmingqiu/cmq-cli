@@ -1,4 +1,4 @@
-import { defaults, vuePresets } from './util/preset';
+import { defaults, vuePresets, VuePresetsItem } from './util/preset';
 import inquirer, {
   Answers,
   ListQuestion,
@@ -10,6 +10,11 @@ import { MANUALVALUE } from './util/const';
 import PromptModuleAPI from './PromptModuleAPI';
 import getPromptModules from './util/prompt';
 import chalk from 'chalk';
+import PackageManager from './PackageManager';
+import { PkgType } from './types';
+import writeFileTree from './util/writeFileTree';
+import executeCommand from './util/executeCommand';
+import { hasProjectGit } from './util/utils';
 
 /**
  * @params name 项目名称
@@ -22,7 +27,11 @@ class Creator {
   injectedPrompts: Array<ListQuestion | ConfirmQuestion> = [];
   // 回调
   promptCompleteCbs: any[] = [];
-  constructor(private name: string) {
+  // 包管理工具类
+  pm!: PackageManager;
+  pkg!: PkgType;
+
+  constructor(private name: string, public context: string) {
     this.presetPrompt = this.resolvePresetPrompts();
     this.featurePrompt = this.resolveFeaturePrompts();
     this.outputPrompts = this.resolveOutputPrompts();
@@ -37,6 +46,7 @@ class Creator {
   async create() {
     const preset = await this.promptAndResolvePreset();
     console.log(preset);
+    this.initPackageManageEnv(preset);
   }
   // 预设提示选项
   resolvePresetPrompts() {
@@ -116,10 +126,11 @@ class Creator {
 
   async promptAndResolvePreset() {
     try {
-      let preset;
+      let preset: VuePresetsItem;
       const answers = await inquirer.prompt(this.resolveFinalPrompts());
+      console.log(answers);
 
-      if (answers?.preset === 'Default (Vue 2)') {
+      if (answers.preset === 'Default (Vue 2)') {
         preset = vuePresets['Default (Vue 2)'];
       } else {
         throw new Error('哎呀，出错了，暂不支持 Vue3、自定义特性配置情况');
@@ -135,6 +146,47 @@ class Creator {
       console.log(chalk.red(error));
       process.exit(1);
     }
+  }
+  // 初始化安装环境，安装内置插件
+  async initPackageManageEnv(preset: VuePresetsItem) {
+    const { name, context } = this;
+    this.pm = new PackageManager({ context });
+    console.log(`✨ 创建项目：${chalk.yellow(context)}`);
+    const pkg: PkgType = {
+      name,
+      version: '1.0.0',
+      private: true,
+      devDependencies: {}
+    };
+    // 给依赖devDependencies指定版本
+    Object.keys(preset.plugins).forEach((pluginKey: string) => {
+      let version = preset.plugins[pluginKey].version;
+      if (!version) version = 'latest';
+      pkg.devDependencies[pluginKey] = version;
+    });
+    this.pkg = pkg;
+    // 写入package.json文件
+    writeFileTree(context, {
+      'package.json': JSON.stringify(this.pkg, null, 2)
+    });
+    // 初始化git，以至于 vue-cli-service 可以设置 git hooks
+    if (this.shouldInitGit()) {
+      console.log(`🗃 初始化 Git 仓库...`);
+      await executeCommand('git', ['init'], context);
+    }
+    console.log(`⚙ 正在安装 CLI plugins. 请稍候...`);
+    await this.pm.install();
+  }
+
+  // 判断是否可以初始化 git 仓库：系统安装了 git 且目录下未初始化过，则初始化
+  shouldInitGit() {
+    /* 
+    if (!hasGit()) {
+      // 系统未安装 git
+      return false
+    }
+    */
+    return !hasProjectGit(this.context);
   }
 }
 
